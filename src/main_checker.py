@@ -1,30 +1,17 @@
 import sys
 import os
-
-# 將專案根目錄加入 sys.path 以便匯入 utils
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import ollama
 from dotenv import load_dotenv
 from utils.pinecone_utils import get_pinecone_index
 from utils.embedding_utils import get_embedding
 from utils.rerank_utils import rerank_documents
 from utils.upsert_vectors import fetch_and_process_url
-
-# 載入環境變數
 load_dotenv()
-
-# 初始化 Pinecone
 index = get_pinecone_index()
-
 def search_and_answer(query: str):
-    """
-    RAG 流程：Search -> Rerank (Cohere) -> Generate
-    """
-    print(f"🔍 正在文章中搜尋：{query}")
-    
     # 1. Search (Retrieve)
-    query_vector = get_embedding(query)
+    query_vector = get_embedding(query, task_type="retrieval_query")
     results = index.query(
         vector=query_vector,
         top_k=20, # 抓多一點給 Cohere 挑
@@ -35,10 +22,10 @@ def search_and_answer(query: str):
     candidates = [m["metadata"]["text"] for m in results["matches"] if "text" in m["metadata"]]
     
     if not candidates:
-        return "❌ 在這篇文章中找不到相關資訊。"
+        return "在這篇文章中找不到相關資訊。"
         
     # 2. Rerank (Cohere)
-    print(f"⚖️  正在使用 Cohere Rerank ({len(candidates)} 筆)...")
+    print(f"正在使用 Cohere Rerank ({len(candidates)} 筆)...")
     ranked_results = rerank_documents(query, candidates, top_n=3)
     
     # 整理 Top 3
@@ -74,14 +61,12 @@ if __name__ == "__main__":
     while True:
         print("\n" + "="*50)
         try:
-            url = input("🌐 請輸入網址 (輸入 q 離開)：").strip()
+            url = input("輸入網址 (輸入 q 離開)：").strip()
         except EOFError:
             break
             
         if url.lower() == 'q':
             break
-            
-        # 呼叫獨立出來的 upsert 功能
         if fetch_and_process_url(url, namespace="web-check"):
             while True:
                 try:
@@ -93,7 +78,6 @@ if __name__ == "__main__":
                     exit()
                 if query.lower() == 'n':
                     break
-                
                 answer = search_and_answer(query)
-                print("\n📝 回答：")
+                print("\n 回覆")
                 print(answer)

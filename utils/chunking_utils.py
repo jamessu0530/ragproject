@@ -14,7 +14,7 @@ def split_text_into_chunks(text: str, chunk_size: int = 900, chunk_overlap: int 
     )
     
     chunks = text_splitter.split_text(text)
-    print(f"🔪 已切分為 {len(chunks)} 個片段 (Size: {chunk_size}, Overlap: {chunk_overlap})")
+    print(f"已切分為 {len(chunks)} 個片段")
     
     return chunks
 

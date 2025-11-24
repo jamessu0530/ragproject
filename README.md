@@ -102,7 +102,6 @@ graph TD
 
 ### 輔助腳本 (`scripts/`)
 - **`index.py`**: 初始化工具。用於在 Pinecone 上建立正確維度 (768) 的 Index。
-- **`query_vectors.py`**: 搜尋測試工具。單純測試向量搜尋功能，檢查資料庫中是否有資料，不涉及 LLM 生成。
 
 ## ⚠️ 注意事項
 
