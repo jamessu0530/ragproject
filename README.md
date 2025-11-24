@@ -9,7 +9,8 @@
 - **即時查核**：輸入任意網址 (如新聞、醫療文章)，即時建立索引並進行問答。
 - **高精準度**：
   - **Embedding**: 使用 **Google Gemini (`text-embedding-004`)** 進行高品質向量化 (維度 768)。
-  - **Rerank**: 使用 `BAAI/bge-reranker-base` 進行二次重排序，確保 AI 看到最相關的片段。
+  - **Rerank**: 使用 **Cohere (`rerank-v3.5`)** 進行頂級的重排序，確保 AI 看到最相關的片段。
+- **專業切片**: 使用 Token-based chunking (`RecursiveCharacterTextSplitter`)，確保上下文完整。
 - **向量資料庫**: 使用 Pinecone 儲存與檢索向量資料。
 
 ## 🛠️ 安裝需求
@@ -19,8 +20,10 @@
    ```bash
    ollama pull gemma3:4b
    ```
-3. **Pinecone API Key** (請至 Pinecone 官網申請免費 Key)
-4. **Google API Key** (用於產生 Embedding，請至 Google AI Studio 申請)
+3. **API Keys**:
+   - Pinecone (向量資料庫)
+   - Google AI Studio (Embedding)
+   - Cohere (Reranking)
 
 ## 🚀 快速開始
 
@@ -31,6 +34,7 @@
 PINECONE_API_KEY=你的_pinecone_api_key
 PINECONE_INDEX=你的_index_name
 GOOGLE_API_KEY=你的_google_api_key
+COHERE_API_KEY=你的_cohere_api_key
 ```
 
 安裝 Python 套件：
@@ -38,21 +42,21 @@ GOOGLE_API_KEY=你的_google_api_key
 python -m venv venv
 source venv/bin/activate
 # 安裝必要套件:
-pip install pinecone google-generativeai sentence-transformers requests beautifulsoup4 python-dotenv ollama
+pip install pinecone google-generativeai cohere requests beautifulsoup4 python-dotenv ollama langchain-text-splitters
 ```
 
 ### 2. 建立資料庫索引 (第一次使用時)
 
 執行 `index.py` 來建立 Pinecone Index (維度 768)：
 ```bash
-python index.py
+python scripts/index.py
 ```
 
 ### 3. 啟動網頁查核機器人
 
 這是本專案的核心功能。執行後，輸入你想查核的網址即可開始對話：
 ```bash
-python main_checker.py
+python src/main_checker.py
 ```
 
 **使用範例：**
@@ -61,16 +65,46 @@ python main_checker.py
 3. 詢問問題：`請問感冒和流感的主要差別是什麼？`
 4. 系統會根據網頁內容生成回答。
 
-## 📂 檔案說明
+## 📂 專案架構與檔案說明
 
-- **`main_checker.py`**: **[主程式]** 互動式網頁抓取與問答機器人。
-- **`embedding_utils.py`**: 封裝 Google Gemini Embedding API 的共用工具。
-- **`rag_retrieve.py`**: RAG 流程的核心邏輯 (Retrieve -> Rerank -> Generate) 測試腳本。
-- **`upsert_vectors.py`**: 手動將資料寫入資料庫的腳本 (範例)。
-- **`index.py`**: 用於建立 Pinecone Index 的工具腳本。
-- **`query_vectors.py`**: 單純測試向量搜尋功能的腳本。
+```mermaid
+graph TD
+    User[使用者] --> Main[src/main_checker.py]
+    Main --> Upsert[utils/upsert_vectors.py]
+    Main --> RAG[RAG 檢索與生成]
+    
+    subgraph "資料輸入 (Ingestion)"
+        Upsert --> Crawler[utils/crawler_utils.py]
+        Upsert --> Chunker[utils/chunking_utils.py]
+        Upsert --> Embedding[utils/embedding_utils.py]
+        Upsert --> Pinecone[(Pinecone DB)]
+    end
+    
+    subgraph "RAG 流程 (Retrieval & Generation)"
+        RAG --> Embedding
+        RAG --> Pinecone
+        RAG --> Rerank[utils/rerank_utils.py]
+        RAG --> Ollama[Ollama Local LLM]
+    end
+```
+
+### 核心應用程式 (`src/`)
+- **`main_checker.py`**: **[主程式]** 整合所有功能，提供互動式介面。負責接收使用者網址與問題，協調爬蟲、檢索、重排與生成回答。
+- **`rag_retrieve.py`**: RAG 流程的獨立測試腳本。不包含爬蟲功能，專門用來測試「檢索 -> 重排 -> 生成」這個核心邏輯是否正常。
+
+### 共用工具 (`utils/`)
+- **`upsert_vectors.py`**: 資料處理核心。負責協調爬蟲抓取、文字切片、轉向量，最後將資料上傳至 Pinecone。
+- **`crawler_utils.py`**: 網頁爬蟲工具。使用 `requests` 和 `BeautifulSoup` 抓取網頁並清理 HTML 標籤。
+- **`chunking_utils.py`**: 文字切片工具。使用 `RecursiveCharacterTextSplitter` 進行 Token-based 切片，確保語意完整。
+- **`embedding_utils.py`**: Embedding 封裝。呼叫 Google Gemini API 產生向量。
+- **`rerank_utils.py`**: Rerank 封裝。呼叫 Cohere API 對檢索結果進行二次排序。
+- **`pinecone_utils.py`**: 資料庫連線管理。統一處理 Pinecone 的初始化與連線。
+
+### 輔助腳本 (`scripts/`)
+- **`index.py`**: 初始化工具。用於在 Pinecone 上建立正確維度 (768) 的 Index。
+- **`query_vectors.py`**: 搜尋測試工具。單純測試向量搜尋功能，檢查資料庫中是否有資料，不涉及 LLM 生成。
 
 ## ⚠️ 注意事項
 
-- 本專案使用 **CrossEncoder** 進行重排序，第一次執行時會自動下載模型 (約 500MB+)，請耐心等候。
 - 網頁抓取功能依賴 `requests` 與 `BeautifulSoup`，對於動態渲染 (JavaScript) 的網站可能無法完整抓取。
+- 請確保 `.env` 檔案中的 API Key 正確無誤。

@@ -1,28 +1,29 @@
+import sys
 import os
+
+# 將專案根目錄加入 sys.path 以便匯入 utils
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import ollama
 from dotenv import load_dotenv
-from pinecone import Pinecone
-from sentence_transformers import CrossEncoder
-from embedding_utils import get_embedding
+from utils.pinecone_utils import get_pinecone_index
+from utils.embedding_utils import get_embedding
+from utils.rerank_utils import rerank_documents
 
 # 載入環境變數
 load_dotenv()
 
 # 初始化 Pinecone
-pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
-index = pc.Index(os.getenv("PINECONE_INDEX"))
+index = get_pinecone_index()
 
-# Rerank 模型 (用於精準排序)
-rerank_model = CrossEncoder("BAAI/bge-reranker-base", max_length=512)
-
-def get_best_context(query_text: str, retrieve_k: int = 10, top_k: int = 3):
+def get_best_context(query_text: str, retrieve_k: int = 15, top_k: int = 3):
     """
-    RAG 流程：Retrieve -> Rerank -> Return Top K
+    RAG 流程：Retrieve -> Rerank (Cohere) -> Return Top K
     """
     print(f"🔍 1. [Retrieve] 正在資料庫搜尋 Top {retrieve_k} 筆資料...")
     
     # --- 步驟 1: Retrieve (粗篩) ---
-    query_vector = get_embedding(query_text) # 改用 Google Embedding
+    query_vector = get_embedding(query_text)
     results = index.query(
         vector=query_vector,
         top_k=retrieve_k,
@@ -39,22 +40,19 @@ def get_best_context(query_text: str, retrieve_k: int = 10, top_k: int = 3):
     if not candidates:
         return "沒有找到相關資料。"
 
-    print(f"⚖️  2. [Rerank] 正在使用 CrossEncoder 重排 {len(candidates)} 筆資料...")
+    print(f"⚖️  2. [Rerank] 正在使用 Cohere 重排 {len(candidates)} 筆資料...")
 
-    # --- 步驟 2: Rerank (精選) ---
-    pairs = [[query_text, doc] for doc in candidates]
-    scores = rerank_model.predict(pairs)
+    # --- 步驟 2: Rerank (Cohere) ---
+    # 呼叫 rerank_utils
+    ranked_results = rerank_documents(query_text, candidates, top_n=top_k)
     
-    # 將 (分數, 文件) 綁定並排序
-    ranked_results = sorted(zip(scores, candidates), key=lambda x: x[0], reverse=True)
-    
-    # --- 步驟 3: 取出 Top K ---
+    # --- 步驟 3: 顯示結果 ---
     final_contexts = []
     print(f"✅ 3. [Result] 最終選出的 Top {top_k}：")
-    for score, text in ranked_results[:top_k]:
-        if score > -10: 
-            print(f"   - (Rerank分數: {score:.4f}) {text}")
-            final_contexts.append(text)
+    for score, text in ranked_results:
+        # Cohere score is usually 0-1
+        print(f"   - (Rerank分數: {score:.4f}) {text[:50]}...")
+        final_contexts.append(text)
     
     return "\n\n".join(final_contexts)
 
