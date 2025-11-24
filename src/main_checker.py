@@ -27,24 +27,19 @@ def search_and_answer(query: str):
     # 2. Rerank (Cohere)
     print(f"正在使用 Cohere Rerank ({len(candidates)} 筆)...")
     ranked_results = rerank_documents(query, candidates, top_n=3)
-    
-    # 整理 Top 3
     top_contexts = []
     for score, text in ranked_results:
-        # Cohere score is usually 0-1
-        if score > 0.01: 
+        if score > 0.2: 
             top_contexts.append(text)
             
     context_text = "\n---\n".join(top_contexts)
     
     if not top_contexts:
-        return "❌ 相關度太低，這篇文章可能沒有提到這個問題。"
+        return "相關度太低，這篇文章可能沒有提到這個問題"
 
     # 3. Generate (Ollama)
-    print("🤖 正在閱讀相關段落並生成回答...")
     prompt = f"""你是一個專業的事實查核員。請根據以下【文章片段】來回答使用者的問題。
 請用繁體中文回答。如果文章中沒有提到相關資訊，請直接說「文章中未提及」。
-
 【文章片段】：
 {context_text}
 
@@ -59,7 +54,6 @@ def search_and_answer(query: str):
 
 if __name__ == "__main__":
     while True:
-        print("\n" + "="*50)
         try:
             url = input("輸入網址 (輸入 q 離開)：").strip()
         except EOFError:
@@ -70,7 +64,7 @@ if __name__ == "__main__":
         if fetch_and_process_url(url, namespace="web-check"):
             while True:
                 try:
-                    query = input("\n❓ 您想查詢什麼 (輸入 n 換網址, q 離開)：").strip()
+                    query = input("\n您想查詢什麼 (輸入 n 換網址, q 離開)：").strip()
                 except EOFError:
                     break
                 

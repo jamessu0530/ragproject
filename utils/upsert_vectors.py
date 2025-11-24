@@ -2,9 +2,6 @@ import sys
 import os
 import time
 import hashlib
-
-if __name__ == "__main__":
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils.pinecone_utils import get_pinecone_index
 from utils.embedding_utils import get_embedding
 from utils.crawler_utils import fetch_url_content
@@ -12,7 +9,6 @@ from utils.chunking_utils import split_text_into_chunks
 index = get_pinecone_index()
 def get_url_hash(url: str) -> str:
     return hashlib.md5(url.encode()).hexdigest()
-
 def fetch_and_process_url(url, namespace):
     """
     1. 抓取網頁 (Crawler)
