@@ -22,7 +22,9 @@ def search_and_answer(query: str):
     candidates = [m["metadata"]["text"] for m in results["matches"] if "text" in m["metadata"]]
     
     if not candidates:
-        return "在這篇文章中找不到相關資訊。"
+        msg = "在這篇文章中找不到相關資訊。"
+        print(msg)
+        return msg
         
     # 2. Rerank (Cohere)
     print(f"正在使用 Cohere Rerank ({len(candidates)} 筆)...")
@@ -35,7 +37,9 @@ def search_and_answer(query: str):
     context_text = "\n---\n".join(top_contexts)
     
     if not top_contexts:
-        return "相關度太低，這篇文章可能沒有提到這個問題"
+        msg = "相關度太低，這篇文章可能沒有提到這個問題"
+        print(msg)
+        return msg
 
     # 3. Generate (Ollama)
     prompt = f"""你是一個專業的事實查核員。請根據以下【文章片段】來回答使用者的問題。
@@ -49,8 +53,16 @@ def search_and_answer(query: str):
 【查核結果】：
 """
     
-    response = ollama.chat(model='gemma3:4b', messages=[{'role': 'user', 'content': prompt}])
-    return response['message']['content']
+    stream = ollama.chat(model='gemma3:4b', messages=[{'role': 'user', 'content': prompt}], stream=True)
+    
+    full_response = ""
+    for chunk in stream:
+        content = chunk['message']['content']
+        print(content, end='' , flush=True)
+        full_response += content
+        
+    print("\n")
+    return full_response
 
 if __name__ == "__main__":
     while True:
@@ -67,11 +79,17 @@ if __name__ == "__main__":
                     query = input("\n您想查詢什麼 (輸入 n 換網址, q 離開)：").strip()
                 except EOFError:
                     break
+                except KeyboardInterrupt:
+                    print("\n程式已中斷。")
+                    exit()
+                
+                if not query:
+                    continue
                 
                 if query.lower() == 'q':
                     exit()
                 if query.lower() == 'n':
                     break
                 answer = search_and_answer(query)
-                print("\n 回覆")
-                print(answer)
+                # print("\n 回覆")
+                # print(answer)
