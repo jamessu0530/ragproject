@@ -66,25 +66,87 @@ python src/main_checker.py
 ## 專案架構與檔案說明
 
 ```mermaid
-graph TD
-    User[使用者] --> Main[src/main_checker.py]
-    Main --> Upsert[utils/upsert_vectors.py]
-    Main --> RAG[RAG 檢索與生成]
-    
-    subgraph "資料輸入 (Ingestion)"
-        Upsert --> Crawler[utils/crawler_utils.py]
-        Upsert --> Chunker[utils/chunking_utils.py]
-        Upsert --> Embedding[utils/embedding_utils.py]
-        Upsert --> Pinecone[(Pinecone DB)]
-    end
-    
-    subgraph "RAG 流程 (Retrieval & Generation)"
-        RAG --> Embedding
-        RAG --> Pinecone
-        RAG --> Rerank[utils/rerank_utils.py]
-        RAG --> Ollama[Ollama Local LLM]
-    end
+classDiagram
+    direction TB
+
+    class MainChecker {
+        - index
+        + search_and_answer(query)
+        --
+        __main__ block:
+        + read url
+        + fetch_and_process_url(url, "web-check")
+        + loop read query
+    }
+
+    %% utils modules
+    class CrawlerUtils {
+        <<module>>
+        + fetch_url_content(url)
+    }
+
+    class ChunkingUtils {
+        <<module>>
+        + split_text_into_chunks(text, chunk_size, chunk_overlap)
+    }
+
+    class EmbeddingUtils {
+        <<module>>
+        + get_embedding(text, task_type)
+    }
+
+    class PineconeUtils {
+        <<module>>
+        + get_pinecone_index()
+    }
+
+    class RerankUtils {
+        <<module>>
+        + rerank_documents(query, documents, top_n)
+    }
+
+    class UpsertVectors {
+        <<module>>
+        - index
+        + get_url_hash(url)
+        + fetch_and_process_url(url, namespace)
+    }
+
+    %% external services
+    class Ollama {
+        <<external>>
+    }
+    class CohereAPI {
+        <<external>>
+    }
+    class GoogleGenAI {
+        <<external>>
+    }
+    class PineconeService {
+        <<external>>
+    }
+    class HTTPWeb {
+        <<external>>
+    }
+
+    %% dependencies
+    MainChecker ..> EmbeddingUtils : get_embedding()
+    MainChecker ..> PineconeUtils : get_pinecone_index()
+    MainChecker ..> RerankUtils : rerank_documents()
+    MainChecker ..> UpsertVectors : fetch_and_process_url()
+
+    UpsertVectors ..> PineconeUtils : index
+    UpsertVectors ..> EmbeddingUtils : get_embedding()
+    UpsertVectors ..> CrawlerUtils : fetch_url_content()
+    UpsertVectors ..> ChunkingUtils : split_text_into_chunks()
+
+    MainChecker ..> Ollama : chat()
+    RerankUtils ..> CohereAPI : rerank()
+    EmbeddingUtils ..> GoogleGenAI : embed_content()
+    PineconeUtils ..> PineconeService : index()
+    CrawlerUtils ..> HTTPWeb : requests.get()
 ```
+
 
 ### 核心應用程式 (`src/`)
 - **`main_checker.py`**: **[主程式]** 整合所有功能，提供互動式介面。負責接收使用者網址與問題，協調爬蟲、檢索、重排與生成回答
