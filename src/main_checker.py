@@ -11,30 +11,25 @@ load_dotenv()
 index = get_pinecone_index()
 def search_and_answer(query: str):
     # 1. Search (Retrieve)
-    query_vector = get_embedding(query, task_type="retrieval_query")
+    query_vector = get_embedding(query, task_type="retrieval_query")#問問題有自己的task_typet傳給genai
     results = index.query(
         vector=query_vector,
-        top_k=20, # 抓多一點給 Cohere 挑
+        top_k=20, # 抓多一點給 Cohere 挑，index query 是 pinecone 的 query ，top_k 是回傳的結果數量
         include_metadata=True,
         namespace="web-check"
     )
     
-    candidates = [m["metadata"]["text"] for m in results["matches"] if "text" in m["metadata"]]
-    
-    if not candidates:
-        msg = "在這篇文章中找不到相關資訊。"
-        print(msg)
-        return msg
+    candidates = [m["metadata"]["text"] for m in results["matches"] if "text" in m["metadata"]]   
         
     # 2. Rerank (Cohere)
-    print(f"正在使用 Cohere Rerank ({len(candidates)} 筆)...")
+    print(f"Cohere Rerank ({len(candidates)} 筆)")
     ranked_results = rerank_documents(query, candidates, top_n=3)
     top_contexts = []
     for score, text in ranked_results:
         if score > 0.2: 
             top_contexts.append(text)
             
-    context_text = "\n---\n".join(top_contexts)
+    context_text = "\n---\n".join(top_contexts)#只是給三個chunk 之間有間隔
     
     if not top_contexts:
         msg = "相關度太低，這篇文章可能沒有提到這個問題"
@@ -76,11 +71,11 @@ if __name__ == "__main__":
         if fetch_and_process_url(url, namespace="web-check"):
             while True:
                 try:
-                    query = input("\n您想查詢什麼 (輸入 n 換網址, q 離開)：").strip()
+                    query = input("\n您想查詢什麼 (n 換網址, q 離開)：").strip()
                 except EOFError:
                     break
                 except KeyboardInterrupt:
-                    print("\n程式已中斷。")
+                    print("\n程式已中斷")
                     exit()
                 
                 if not query:

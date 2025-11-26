@@ -55,6 +55,7 @@ python scripts/index.py
 這是本專案的核心功能。執行後，輸入你想查核的網址即可開始對話：
 ```bash
 python src/main_checker.py
+./venv/bin/python src/main_checker.py
 ```
 
 **使用範例：**

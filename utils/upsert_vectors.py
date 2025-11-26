@@ -27,8 +27,8 @@ def fetch_and_process_url(url, namespace):
     # 3. 存入 Pinecone
     url_hash = get_url_hash(url)
     vectors = []
-    for idx, chunk in enumerate(chunks):
-        unique_id = f"{url_hash}_{idx}"
+    for idx, chunk in enumerate(chunks):#爲chunk 加上索引值
+        unique_id = f"{url_hash}_{idx}"#chunk 的唯一id
         vector = {
             "id": unique_id,
             "values": get_embedding(chunk),
