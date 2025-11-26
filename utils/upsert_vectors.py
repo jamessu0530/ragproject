@@ -47,5 +47,6 @@ def fetch_and_process_url(url, namespace):
     print(f"寫入 {len(vectors)} 筆資料到 namespace='{namespace}' (ID prefix: {url_hash})")
     
     # 等待索引生效
-    time.sleep(2) 
+    print("睡十秒")
+    time.sleep(10) 
     return True

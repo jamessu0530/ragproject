@@ -10,7 +10,7 @@ from utils.upsert_vectors import fetch_and_process_url
 load_dotenv()
 index = get_pinecone_index()
 def search_and_answer(query: str):
-    # 1. Search (Retrieve)
+    # 1. Search (Retrieve) 檢索
     query_vector = get_embedding(query, task_type="retrieval_query")#問問題有自己的task_typet傳給genai
     results = index.query(
         vector=query_vector,
@@ -18,6 +18,9 @@ def search_and_answer(query: str):
         include_metadata=True,
         namespace="web-check"
     )
+    print(f"Pinecone 搜尋結果：找到 {len(results['matches'])} 筆資料")
+    for m in results["matches"]:
+        print(m["id"], m["score"])#檢查 pinecone 的 query 結果
     
     candidates = [m["metadata"]["text"] for m in results["matches"] if "text" in m["metadata"]]   
         
