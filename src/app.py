@@ -8,11 +8,24 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 加入根目錄以便匯入
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Vercel Serverless 環境的路徑處理
+# 確保可以找到 NTOUutils 和 utils 模組
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
-from NTOUutils.ntou_embedding import embed_and_upsert_products
-from NTOUutils.ntou_search import search_products
+# 嘗試導入模組，如果失敗則記錄詳細錯誤
+try:
+    from NTOUutils.ntou_embedding import embed_and_upsert_products
+    from NTOUutils.ntou_search import search_products
+    logger.info("模組導入成功")
+except ImportError as e:
+    logger.error(f"模組導入失敗: {e}")
+    logger.error(f"sys.path: {sys.path}")
+    logger.error(f"current_dir: {current_dir}")
+    logger.error(f"parent_dir: {parent_dir}")
+    raise
 
 app = Flask(__name__)
 
@@ -48,20 +61,29 @@ def search():
     接收 { "query": "使用者問題" }
     回傳搜尋結果 JSON (產品 ID 列表)
     """
-    data = request.json
-    if not data or 'query' not in data:
-        return jsonify({"status": "error", "message": "Missing 'query' field"}), 400
-    
-    query_text = data['query']
-    
     try:
+        data = request.json
+        if not data or 'query' not in data:
+            return jsonify({"status": "error", "message": "Missing 'query' field"}), 400
+        
+        query_text = data['query']
         logger.info(f"收到搜尋請求: {query_text}")
+        
+        # 檢查環境變數
+        required_env = ['PINECONE_API_KEY', 'PINECONE_INDEX', 'GOOGLE_API_KEY']
+        missing_env = [key for key in required_env if not os.getenv(key)]
+        if missing_env:
+            logger.error(f"缺少環境變數: {missing_env}")
+            return jsonify({"status": "error", "message": f"Missing environment variables: {', '.join(missing_env)}"}), 500
+        
         results = search_products(query_text)
         id_list = [item['id'] for item in results]
         logger.info(f"搜尋完成，找到 {len(id_list)} 筆結果")
         return jsonify(id_list), 200
     except Exception as e:
-        logger.error(f"搜尋失敗: {e}")
+        import traceback
+        error_detail = traceback.format_exc()
+        logger.error(f"搜尋失敗: {e}\n{error_detail}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # Vercel 需要將 app 作為 module 導出

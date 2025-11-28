@@ -12,8 +12,10 @@
       "dest": "src/app.py"
     }
   ],
-  "env": {
-    "PORT": "5001"
+  "functions": {
+    "src/app.py": {
+      "maxDuration": 30
+    }
   }
 }
 
