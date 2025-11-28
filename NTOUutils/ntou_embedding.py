@@ -1,20 +1,21 @@
-import ollama
 from tqdm import tqdm
+from deep_translator import GoogleTranslator
 from utils.embedding_utils import get_embedding
 from utils.pinecone_utils import get_pinecone_index
 from NTOUutils.ntou_api import get_all_product_ids, get_product_details
 
 def translate_to_english(text):
     """
-    使用 Ollama 將輸入文字翻譯成英文 (簡單版，不印過多 log 以免干擾進度條)
+    使用 deep-translator 將輸入文字翻譯成英文
     """
     try:
-        if not text or len(text) < 2:  # 太短就不翻譯了
+        if not text or len(text.strip()) == 0:
             return ""
-        prompt = f"Translate the following Chinese text to English. Only output the translation, no other text.\n\nText: {text}"
-        response = ollama.chat(model='gemma3:4b', messages=[{'role': 'user', 'content': prompt}])
-        return response['message']['content'].strip()
-    except:
+        translator = GoogleTranslator(source='zh-TW', target='en')
+        translation = translator.translate(text)
+        return translation
+    except Exception as e:
+        print(f"翻譯失敗: {e}")
         return ""
 
 def embed_and_upsert_products():
