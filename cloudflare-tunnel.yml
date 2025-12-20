@@ -1,0 +1,21 @@
+# Cloudflare Tunnel 配置文件
+# 三個服務共用同一個 named tunnel
+
+tunnel: 7bcab370-2ebc-4ba6-a08d-c65fa8a69a37
+credentials-file: /Users/jamessu/.cloudflared/7bcab370-2ebc-4ba6-a08d-c65fa8a69a37.json
+
+ingress:
+  # 前端服務
+  - hostname: frontend.jamessu2016.com
+    service: http://localhost:5173
+  
+  # 後端 API（產品搜尋）
+  - hostname: api.jamessu2016.com
+    service: http://localhost:8080
+  
+  # RAG API（PDF 查詢服務）
+  - hostname: rag-api.jamessu2016.com
+    service: http://localhost:5001
+  
+  # 預設規則（必須放在最後）
+  - service: http_status:404

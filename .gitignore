@@ -11,3 +11,7 @@ venv/
 env/
 ENV/
 
+# PDF 檔案
+pdfs/
+*.pdf
+
