@@ -6,7 +6,7 @@ credentials-file: /Users/jamessu/.cloudflared/7bcab370-2ebc-4ba6-a08d-c65fa8a69a
 
 ingress:
   # 前端服務
-  - hostname: frontend.jamessu2016.com
+  - hostname: davidloman.jamessu2016.com
     service: http://localhost:5173
   
   # 後端 API（產品搜尋）
