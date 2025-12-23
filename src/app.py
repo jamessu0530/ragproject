@@ -10,6 +10,7 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 from NTOUutils.ntou_search import search_products
+from NTOUutils.ntou_rewrite import rewrite_message
 
 app = Flask(__name__)
 CORS(app)
@@ -25,6 +26,28 @@ def search():
         results = search_products(data['query'])
         id_list = [item['id'] for item in results]
         return jsonify(id_list), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/rewrite', methods=['POST'])
+def rewrite():
+    """
+    使用本地 Gemma3 模型潤飾一段訊息。
+
+    Request JSON:
+    {
+      "message": "原始訊息內容"
+    }
+    """
+    try:
+        data = request.json
+        if not data or 'message' not in data:
+            return jsonify({"error": "Missing 'message' field"}), 400
+
+        original = data['message']
+        polished = rewrite_message(original)
+        return jsonify({"original": original, "polished": polished}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
