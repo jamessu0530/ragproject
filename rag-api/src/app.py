@@ -4,8 +4,8 @@ import sys
 import os
 from dotenv import load_dotenv
 
-# 載入 rag-project 專用的環境變數
-load_dotenv('.env.rag-project')
+# 載入環境變數
+load_dotenv()
 
 # 加入根目錄以便匯入模組
 current_dir = os.path.dirname(os.path.abspath(__file__))

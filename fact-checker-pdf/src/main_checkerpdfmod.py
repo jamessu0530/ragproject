@@ -6,23 +6,24 @@ from dotenv import load_dotenv
 from utils.pinecone_utils import get_pinecone_index
 from utils.embedding_utils import get_embedding
 from utils.rerank_utils import rerank_documents
-from utils.upsert_vectors import fetch_and_process_url
+from utils.pdf_utils import fetch_and_process_pdf, fetch_and_process_pdf_folder
 
-# 載入 medical-fact-checker 專用的環境變數
-load_dotenv('.env.medical-fact-checker')
+# 載入環境變數
+load_dotenv()
 index = get_pinecone_index()
+
 def search_and_answer(query: str):
     # 1. Search (Retrieve) 檢索
-    query_vector = get_embedding(query, task_type="retrieval_query")#問問題有自己的task_typet傳給genai
+    query_vector = get_embedding(query, task_type="retrieval_query")
     results = index.query(
         vector=query_vector,
-        top_k=20, # 抓多一點給 Cohere 挑，index query 是 pinecone 的 query ，top_k 是回傳的結果數量
+        top_k=20,
         include_metadata=True,
         namespace="web-check"
     )
     print(f"Pinecone 搜尋結果：找到 {len(results['matches'])} 筆資料")
     for m in results["matches"]:
-        print(m["id"], m["score"])#檢查 pinecone 的 query 結果
+        print(m["id"], m["score"])
     
     candidates = [m["metadata"]["text"] for m in results["matches"] if "text" in m["metadata"]]   
         
@@ -34,7 +35,7 @@ def search_and_answer(query: str):
         if score > 0.2: 
             top_contexts.append(text)
             
-    context_text = "\n---\n".join(top_contexts)#只是給三個chunk 之間有間隔
+    context_text = "\n---\n".join(top_contexts)
     
     if not top_contexts:
         msg = "相關度太低，這篇文章可能沒有提到這個問題"
@@ -65,31 +66,17 @@ def search_and_answer(query: str):
     return full_response
 
 if __name__ == "__main__":
-    while True:
-        try:
-            url = input("輸入網址 (輸入 q 離開)：").strip()
-        except EOFError:
-            break
-            
-        if url.lower() == 'q':
-            break
-        if fetch_and_process_url(url, namespace="web-check"):
-            while True:
-                try:
-                    query = input("\n您想查詢什麼 (n 換網址, q 離開)：").strip()
-                except EOFError:
-                    break
-                except KeyboardInterrupt:
-                    print("\n程式已中斷")
-                    exit()
-                
-                if not query:
-                    continue
-                
-                if query.lower() == 'q':
-                    exit()
-                if query.lower() == 'n':
-                    break
-                answer = search_and_answer(query)
-                # print("\n 回覆")
-                # print(answer)
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    pdfs_folder = os.path.join(project_root, "pdfs")
+    
+    # 直接讀取 pdfs 資料夾
+    print("正在讀取 pdfs 資料夾中的所有 PDF 檔案...")
+    fetch_and_process_pdf_folder(pdfs_folder, namespace="web-check")
+    
+    # 詢問查詢問題
+    try:
+        query = input("\n您想查詢什麼：").strip()
+        if query:
+            search_and_answer(query)
+    except (EOFError, KeyboardInterrupt):
+        print("\n程式已結束")

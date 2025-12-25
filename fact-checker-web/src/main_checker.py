@@ -8,21 +8,22 @@ from utils.embedding_utils import get_embedding
 from utils.rerank_utils import rerank_documents
 from utils.upsert_vectors import fetch_and_process_url
 
-# 載入 medical-fact-checker 專用的環境變數
-load_dotenv('.env.medical-fact-checker')
+# 載入環境變數
+load_dotenv()
 index = get_pinecone_index()
+
 def search_and_answer(query: str):
     # 1. Search (Retrieve) 檢索
-    query_vector = get_embedding(query, task_type="retrieval_query")#問問題有自己的task_typet傳給genai
+    query_vector = get_embedding(query, task_type="retrieval_query")
     results = index.query(
         vector=query_vector,
-        top_k=20, # 抓多一點給 Cohere 挑，index query 是 pinecone 的 query ，top_k 是回傳的結果數量
+        top_k=20,
         include_metadata=True,
         namespace="web-check"
     )
     print(f"Pinecone 搜尋結果：找到 {len(results['matches'])} 筆資料")
     for m in results["matches"]:
-        print(m["id"], m["score"])#檢查 pinecone 的 query 結果
+        print(m["id"], m["score"])
     
     candidates = [m["metadata"]["text"] for m in results["matches"] if "text" in m["metadata"]]   
         
@@ -34,7 +35,7 @@ def search_and_answer(query: str):
         if score > 0.2: 
             top_contexts.append(text)
             
-    context_text = "\n---\n".join(top_contexts)#只是給三個chunk 之間有間隔
+    context_text = "\n---\n".join(top_contexts)
     
     if not top_contexts:
         msg = "相關度太低，這篇文章可能沒有提到這個問題"
@@ -91,5 +92,3 @@ if __name__ == "__main__":
                 if query.lower() == 'n':
                     break
                 answer = search_and_answer(query)
-                # print("\n 回覆")
-                # print(answer)

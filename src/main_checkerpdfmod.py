@@ -7,7 +7,9 @@ from utils.pinecone_utils import get_pinecone_index
 from utils.embedding_utils import get_embedding
 from utils.rerank_utils import rerank_documents
 from utils.pdf_utils import fetch_and_process_pdf, fetch_and_process_pdf_folder
-load_dotenv()
+
+# 載入 medical-fact-checker 專用的環境變數
+load_dotenv('.env.medical-fact-checker')
 index = get_pinecone_index()
 def search_and_answer(query: str):
     # 1. Search (Retrieve) 檢索
