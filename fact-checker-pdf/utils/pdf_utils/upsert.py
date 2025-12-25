@@ -35,9 +35,16 @@ def fetch_and_process_pdf(pdf_path: str, namespace: str):
     vectors = []
     for idx, chunk in enumerate(chunks):
         unique_id = f"{file_hash}_{idx}"
+        embedding = get_embedding(chunk)
+        
+        # 如果 embedding 失敗（回傳 None），跳過這個 chunk
+        if embedding is None:
+            print(f"⚠️  片段 {idx} embedding 失敗，跳過")
+            continue
+        
         vector = {
             "id": unique_id,
-            "values": get_embedding(chunk),
+            "values": embedding,
             "metadata": {
                 "text": chunk,
                 "file_path": pdf_path,
@@ -47,13 +54,22 @@ def fetch_and_process_pdf(pdf_path: str, namespace: str):
         }
         vectors.append(vector)
     
+    # 如果沒有任何有效的向量，回傳 False
+    if not vectors:
+        print("❌ 所有片段 embedding 都失敗，無法寫入資料")
+        return False
+    
     # 批次寫入
     batch_size = 100
     for i in range(0, len(vectors), batch_size):
         batch = vectors[i:i+batch_size]
-        index.upsert(vectors=batch, namespace=namespace)
+        try:
+            index.upsert(vectors=batch, namespace=namespace)
+        except Exception as e:
+            print(f"❌ 批次寫入失敗: {e}")
+            return False
     
-    print(f"寫入 {len(vectors)} 筆資料到 namespace='{namespace}' (ID prefix: {file_hash})")
+    print(f"✅ 寫入 {len(vectors)} 筆資料到 namespace='{namespace}' (ID prefix: {file_hash})")
     
     # 等待索引生效
     print("睡十秒")
