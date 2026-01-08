@@ -1,5 +1,7 @@
 # 環境變數檔案
 .env
+.env*
+*.env
 
 # Python
 __pycache__/

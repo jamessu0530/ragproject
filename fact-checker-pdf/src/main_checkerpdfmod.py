@@ -2,19 +2,39 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import ollama
+from deep_translator import GoogleTranslator
 from dotenv import load_dotenv
 from utils.pinecone_utils import get_pinecone_index
 from utils.embedding_utils import get_embedding
 from utils.rerank_utils import rerank_documents
 from utils.pdf_utils import fetch_and_process_pdf, fetch_and_process_pdf_folder
 
+def translate_to_english(text: str) -> str:
+    """將中文翻譯成英文"""
+    try:
+        if not text or len(text.strip()) == 0:
+            return ""
+        translator = GoogleTranslator(source='zh-TW', target='en')
+        translation = translator.translate(text)
+        return translation
+    except Exception as e:
+        print(f"翻譯失敗: {e}")
+        return text
+
 # 載入環境變數
 load_dotenv()
 index = get_pinecone_index()
 
 def search_and_answer(query: str):
-    # 1. Search (Retrieve) 檢索
-    query_vector = get_embedding(query, task_type="retrieval_query")
+    # 將查詢翻譯成英文（因為向量資料庫存的是英文）
+    query_en = translate_to_english(query)
+    search_query = query_en if query_en else query
+    print(f"原始查詢（中文）: {query}")
+    if query_en:
+        print(f"翻譯查詢（英文）: {query_en}")
+    
+    # 1. Search (Retrieve) 檢索 - 用英文查詢
+    query_vector = get_embedding(search_query, task_type="retrieval_query")
     results = index.query(
         vector=query_vector,
         top_k=20,
@@ -27,12 +47,18 @@ def search_and_answer(query: str):
     
     candidates = [m["metadata"]["text"] for m in results["matches"] if "text" in m["metadata"]]   
         
-    # 2. Rerank (Cohere)
+    # 2. Rerank (Cohere) - 也用英文查詢
+    rerank_query = search_query
+    
     print(f"Cohere Rerank ({len(candidates)} 筆)")
-    ranked_results = rerank_documents(query, candidates, top_n=3)
+    ranked_results = rerank_documents(rerank_query, candidates, top_n=3)
+    
+    # Debug: 顯示 rerank 分數
+    print("Rerank 分數：", [f"{score:.4f}" for score, _ in ranked_results])
+    
     top_contexts = []
     for score, text in ranked_results:
-        if score > 0.2: 
+        if score >= 0.1:  # 相關度 0.1 以上就使用
             top_contexts.append(text)
             
     context_text = "\n---\n".join(top_contexts)
@@ -73,10 +99,33 @@ if __name__ == "__main__":
     print("正在讀取 pdfs 資料夾中的所有 PDF 檔案...")
     fetch_and_process_pdf_folder(pdfs_folder, namespace="web-check")
     
-    # 詢問查詢問題
-    try:
-        query = input("\n您想查詢什麼：").strip()
-        if query:
+    # 連續問答迴圈
+    print("\n" + "=" * 50)
+    print("PDF 處理完成！現在可以開始問問題了。")
+    print("輸入 'q' 或 'exit' 離開程式")
+    print("=" * 50)
+    
+    while True:
+        try:
+            query = input("\n您想查詢什麼：").strip()
+            
+            if not query:
+                continue
+            
+            if query.lower() in ['q', 'exit', 'quit', '離開']:
+                print("\n程式已結束")
+                break
+            
+            print("\n" + "-" * 50)
             search_and_answer(query)
-    except (EOFError, KeyboardInterrupt):
-        print("\n程式已結束")
+            print("-" * 50)
+            
+        except EOFError:
+            print("\n程式已結束")
+            break
+        except KeyboardInterrupt:
+            print("\n\n程式已中斷")
+            break
+        except Exception as e:
+            print(f"\n發生錯誤: {e}")
+            continue
