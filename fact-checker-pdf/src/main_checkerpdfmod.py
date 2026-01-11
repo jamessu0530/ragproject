@@ -2,39 +2,19 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import ollama
-from deep_translator import GoogleTranslator
 from dotenv import load_dotenv
 from utils.pinecone_utils import get_pinecone_index
 from utils.embedding_utils import get_embedding
 from utils.rerank_utils import rerank_documents
 from utils.pdf_utils import fetch_and_process_pdf, fetch_and_process_pdf_folder
 
-def translate_to_english(text: str) -> str:
-    """將中文翻譯成英文"""
-    try:
-        if not text or len(text.strip()) == 0:
-            return ""
-        translator = GoogleTranslator(source='zh-TW', target='en')
-        translation = translator.translate(text)
-        return translation
-    except Exception as e:
-        print(f"翻譯失敗: {e}")
-        return text
-
 # 載入環境變數
 load_dotenv()
 index = get_pinecone_index()
 
 def search_and_answer(query: str):
-    # 將查詢翻譯成英文（因為向量資料庫存的是英文）
-    query_en = translate_to_english(query)
-    search_query = query_en if query_en else query
-    print(f"原始查詢（中文）: {query}")
-    if query_en:
-        print(f"翻譯查詢（英文）: {query_en}")
-    
-    # 1. Search (Retrieve) 檢索 - 用英文查詢
-    query_vector = get_embedding(search_query, task_type="retrieval_query")
+    # 1. Search (Retrieve) 檢索 - 直接用中文查詢
+    query_vector = get_embedding(query, task_type="retrieval_query")
     results = index.query(
         vector=query_vector,
         top_k=20,
@@ -47,8 +27,8 @@ def search_and_answer(query: str):
     
     candidates = [m["metadata"]["text"] for m in results["matches"] if "text" in m["metadata"]]   
         
-    # 2. Rerank (Cohere) - 也用英文查詢
-    rerank_query = search_query
+    # 2. Rerank (Cohere) - 用中文查詢
+    rerank_query = query
     
     print(f"Cohere Rerank ({len(candidates)} 筆)")
     ranked_results = rerank_documents(rerank_query, candidates, top_n=3)

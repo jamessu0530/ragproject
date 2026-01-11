@@ -1,57 +1,60 @@
-import os
-from pypdf import PdfReader
+from unstructured.partition.pdf import partition_pdf
 
-def extract_text_from_pdf(pdf_path: str) -> str | None:
-    """
-    從 PDF 檔案中提取文字內容
+def extract_text_from_pdf(pdf_path: str) -> list[dict] | None:
+    elements = partition_pdf(pdf_path)
     
-    Args:
-        pdf_path: PDF 檔案的路徑
-        
-    Returns:
-        提取的文字內容，如果失敗則返回 None
-    """
-    if not os.path.exists(pdf_path):
-        print(f"檔案不存在：{pdf_path}")
-        return None
+    has_text = any(hasattr(e, "text") and e.text.strip() for e in elements)
     
-    if not pdf_path.lower().endswith('.pdf'):
-        print(f"檔案不是 PDF 格式：{pdf_path}")
-        return None
+    if not has_text:
+        print("這是掃描 PDF，要走 OCR")
+        elements = partition_pdf(pdf_path, strategy="ocr_only")
     
-    try:
-        print(f"正在讀取 PDF：{pdf_path}")
-        reader = PdfReader(pdf_path)
-        
-        # 提取所有頁面的文字
-        text_parts = []
-        total_pages = len(reader.pages)
-        print(f"PDF 共有 {total_pages} 頁")
-        
-        for page_num, page in enumerate(reader.pages, 1):
-            try:
-                text = page.extract_text()
-                if text.strip():
-                    text_parts.append(text)
-                    print(f"已讀取第 {page_num}/{total_pages} 頁")
-            except Exception as e:
-                print(f"讀取第 {page_num} 頁時發生錯誤：{e}")
+    text_blocks = []
+    for element in elements:
+        if hasattr(element, 'text') and element.text:
+            text = element.text.strip()
+            if not text:
                 continue
-        
-        if not text_parts:
-            print("PDF 中沒有找到文字內容")
-            return None
-        
-        # 合併所有文字，用換行分隔
-        full_text = "\n\n".join(text_parts)
-        
-        # 清理文字：移除多餘的空白
-        cleaned_lines = [line.strip() for line in full_text.split('\n') if line.strip()]
-        result = "\n".join(cleaned_lines)
-        
-        print(f"成功提取 {len(result)} 個字元")
-        return result
-        
-    except Exception as e:
-        print(f"讀取 PDF 失敗：{e}")
+            
+            # 安全取用 page 資訊
+            page = None
+            if hasattr(element, 'metadata') and element.metadata:
+                page = getattr(element.metadata, 'page_number', None)
+            if page is None and hasattr(element, 'page_number'):
+                page = element.page_number
+            
+            # 安全取用 bbox 資訊
+            bbox = None
+            try:
+                if hasattr(element, 'metadata') and element.metadata:
+                    coordinates = getattr(element.metadata, 'coordinates', None)
+                    if coordinates:
+                        if hasattr(coordinates, 'points'):
+                            # 轉換為 [x1, y1, x2, y2] 格式
+                            points = coordinates.points
+                            if points and len(points) >= 4:
+                                x_coords = [p[0] for p in points if isinstance(p, (list, tuple)) and len(p) >= 2]
+                                y_coords = [p[1] for p in points if isinstance(p, (list, tuple)) and len(p) >= 2]
+                                if x_coords and y_coords:
+                                    bbox = [min(x_coords), min(y_coords), max(x_coords), max(y_coords)]
+                        elif isinstance(coordinates, (list, tuple)) and len(coordinates) >= 4:
+                            # 已經是 [x1, y1, x2, y2] 格式
+                            bbox = list(coordinates[:4])
+                
+                if bbox is None and hasattr(element, 'bbox'):
+                    bbox_val = element.bbox
+                    if isinstance(bbox_val, (list, tuple)) and len(bbox_val) >= 4:
+                        bbox = list(bbox_val[:4])
+            except Exception:
+                bbox = None
+            
+            text_blocks.append({
+                "page": page,
+                "text": text,
+                "bbox": bbox
+            })
+    
+    if not text_blocks:
         return None
+    
+    return text_blocks
