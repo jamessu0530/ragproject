@@ -14,7 +14,7 @@ index = get_pinecone_index()
 
 def search_and_answer(query: str):
     # 1. Search (Retrieve) 檢索 - 直接用中文查詢
-    query_vector = get_embedding(query, task_type="retrieval_query")
+    query_vector = get_embedding(query, task_type="RETRIEVAL_QUERY")
     results = index.query(
         vector=query_vector,
         top_k=20,

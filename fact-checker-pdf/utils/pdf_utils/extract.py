@@ -1,6 +1,35 @@
+import re
+import warnings
 from unstructured.partition.pdf import partition_pdf
 
+# 隱藏 unstructured 的警告訊息
+warnings.filterwarnings("ignore", category=UserWarning, module="unstructured")
+warnings.filterwarnings("ignore", message=".*No features in text.*")
+warnings.filterwarnings("ignore", message=".*No languages specified.*")
+
+def clean_text(text: str) -> str:
+    """
+    清理文字：移除注音符號、正規化換行和空白
+    """
+    # 1. 移除注音符號（ㄅㄆㄇㄈ等）
+    # 注音符號 Unicode 範圍：U+3105 到 U+312F
+    bopomofo_pattern = r'[\u3105-\u312F\u02C7\u02CA\u02CB\u02D9]'
+    text = re.sub(bopomofo_pattern, '', text)
+    
+    # 2. 將所有換行符號替換成空格
+    text = text.replace('\n', ' ')
+    
+    # 3. 將多個連續空白合併成一個空格
+    text = re.sub(r'\s+', ' ', text)
+    
+    # 4. 去除頭尾空白
+    text = text.strip()
+    
+    return text
+
+
 def extract_text_from_pdf(pdf_path: str) -> list[dict] | None:
+    # 不指定語言，讓 unstructured 自動偵測（支援所有語言）
     elements = partition_pdf(pdf_path)
     
     has_text = any(hasattr(e, "text") and e.text.strip() for e in elements)
@@ -23,35 +52,22 @@ def extract_text_from_pdf(pdf_path: str) -> list[dict] | None:
             if page is None and hasattr(element, 'page_number'):
                 page = element.page_number
             
-            # 安全取用 bbox 資訊
-            bbox = None
-            try:
-                if hasattr(element, 'metadata') and element.metadata:
-                    coordinates = getattr(element.metadata, 'coordinates', None)
-                    if coordinates:
-                        if hasattr(coordinates, 'points'):
-                            # 轉換為 [x1, y1, x2, y2] 格式
-                            points = coordinates.points
-                            if points and len(points) >= 4:
-                                x_coords = [p[0] for p in points if isinstance(p, (list, tuple)) and len(p) >= 2]
-                                y_coords = [p[1] for p in points if isinstance(p, (list, tuple)) and len(p) >= 2]
-                                if x_coords and y_coords:
-                                    bbox = [min(x_coords), min(y_coords), max(x_coords), max(y_coords)]
-                        elif isinstance(coordinates, (list, tuple)) and len(coordinates) >= 4:
-                            # 已經是 [x1, y1, x2, y2] 格式
-                            bbox = list(coordinates[:4])
-                
-                if bbox is None and hasattr(element, 'bbox'):
-                    bbox_val = element.bbox
-                    if isinstance(bbox_val, (list, tuple)) and len(bbox_val) >= 4:
-                        bbox = list(bbox_val[:4])
-            except Exception:
-                bbox = None
+            
+            # 清理文字：移除注音符號、換行符號和多餘空白
+            text = clean_text(text)
+            
+            # 過濾頁碼：如果是純數字且很短（< 5 字元），可能是頁碼，跳過
+            if text.isdigit() and len(text) <= 4:
+                continue
+            
+            # 移除注音後可能變成空字串
+            if not text:
+                continue
             
             text_blocks.append({
                 "page": page,
                 "text": text,
-                "bbox": bbox
+                "type": getattr(element, "category", element.__class__.__name__)
             })
     
     if not text_blocks:

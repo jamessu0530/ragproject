@@ -27,7 +27,11 @@ def fetch_and_process_pdf(pdf_path: str, namespace: str):
         if embedding is None:
             continue
         
-        # chunk 天生知道自己來自哪些 page/bbox
+        # chunk 天生知道自己來自哪些 page
+        # Pinecone metadata 只接受 string list，所以要把 pages 轉成字串
+        pages = chunk.get("pages")
+        pages_str = [str(p) for p in pages] if pages else None
+        
         vector = {
             "id": unique_id,
             "values": embedding,
@@ -36,8 +40,8 @@ def fetch_and_process_pdf(pdf_path: str, namespace: str):
                 "file_path": pdf_path,
                 "file_name": os.path.basename(pdf_path),
                 "chunk_index": idx,
-                "pages": chunk.get("pages"),
-                "bboxes": chunk.get("bboxes")
+                "pages": pages_str,
+                "types": chunk.get("types")
             }
         }
         vectors.append(vector)
