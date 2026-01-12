@@ -1,81 +1,35 @@
 
 
-def chunk_blocks(text_blocks: list[dict], chunk_size: int = 900) -> list[dict]:
+
+def chunk_blocks(text_blocks: list[dict], chunk_size: int = 500, max_page_span: int = 2) -> list[dict]:
     """
-    以 block 為單位進行 chunking，保留 page 資訊
+    語意結構導向的 chunking
     
-    不進行二次 split，chunk 邊界嚴格對應 block 邊界，確保 pages 準確
-    
-    Args:
-        text_blocks: 文字塊清單，每個 dict 包含 "page", "text", "type"
-        chunk_size: chunk 大小（字元數）
-    
-    Returns:
-        chunk 清單，每個 dict 包含 "text", "pages", "types"
+    策略：
+    1. Title = 強制邊界
+    2. 同一 chunk 最多跨 max_page_span 頁
+    3. 不切斷 block
+    4. chunk_size 為上限
     """
     if not text_blocks:
         return []
     
     chunks = []
     current_text = ""
-    current_blocks = []  # 追蹤當前累積的 blocks
+    current_blocks = []
     
-    for block in text_blocks:
-        block_text = block.get("text", "").strip()
-        if not block_text:
-            continue
+    def flush_chunk():
+        if not current_text.strip():
+            return
         
-        # 處理單一 block 超過 chunk_size 的情況
-        if len(block_text) > chunk_size:
-            # 先 flush 當前累積的內容
-            if current_text.strip():
-                pages = sorted({b.get("page") for b in current_blocks if b.get("page") is not None})
-                types = sorted({b.get("type") for b in current_blocks if b.get("type") is not None})
-                
-                chunks.append({
-                    "text": current_text.strip(),
-                    "pages": pages if pages else None,
-                    "types": types if types else None
-                })
-            
-            # 超大 block 自己單獨成 chunk
-            chunks.append({
-                "text": block_text,
-                "pages": [block.get("page")] if block.get("page") is not None else None,
-                "types": [block.get("type")] if block.get("type") is not None else None
-            })
-            
-            # 清空累積
-            current_text = ""
-            current_blocks = []
-            continue
-        
-        # 嘗試將新 block 加入當前文字（用空格分隔）
-        test_text = current_text + " " + block_text if current_text else block_text
-        
-        # 如果加入後超過 chunk_size，輸出當前 chunk 並清空
-        if len(test_text) > chunk_size and current_text:
-            pages = sorted({b.get("page") for b in current_blocks if b.get("page") is not None})
-            types = sorted({b.get("type") for b in current_blocks if b.get("type") is not None})
-            
-            chunks.append({
-                "text": current_text.strip(),
-                "pages": pages if pages else None,
-                "types": types if types else None
-            })
-            
-            # 清空，準備新的 chunk（只加入新 block，不要用 test_text）
-            current_text = block_text
-            current_blocks = [block]
-        else:
-            # 可以安全加入，使用 test_text
-            current_text = test_text
-            current_blocks.append(block)
-    
-    # 處理最後剩餘的
-    if current_text.strip():
         pages = sorted({b.get("page") for b in current_blocks if b.get("page") is not None})
-        types = sorted({b.get("type") for b in current_blocks if b.get("type") is not None})
+        seen = set()
+        types = []
+        for b in current_blocks:
+            t = b.get("type")
+            if t and t not in seen:
+                types.append(t)
+                seen.add(t)
         
         chunks.append({
             "text": current_text.strip(),
@@ -83,5 +37,53 @@ def chunk_blocks(text_blocks: list[dict], chunk_size: int = 900) -> list[dict]:
             "types": types if types else None
         })
     
-    print(f"已切分為 {len(chunks)} 個片段（以 block 為單位）")
+    for block in text_blocks:
+        block_text = block.get("text", "").strip()
+        block_type = block.get("type", "")
+        block_page = block.get("page")
+        
+        if not block_text:
+            continue
+        
+        # Title = 強制邊界
+        if block_type == "Title" and current_text:
+            flush_chunk()
+            current_text = ""
+            current_blocks = []
+        
+        # 檢查頁數跨度
+        if current_blocks and block_page is not None:
+            current_pages = {b.get("page") for b in current_blocks if b.get("page") is not None}
+            if current_pages:
+                page_span = max(current_pages | {block_page}) - min(current_pages | {block_page}) + 1
+                if page_span > max_page_span:
+                    flush_chunk()
+                    current_text = ""
+                    current_blocks = []
+        
+        # 超大 block 單獨處理
+        if len(block_text) > chunk_size:
+            flush_chunk()
+            chunks.append({
+                "text": block_text,
+                "pages": [block_page] if block_page is not None else None,
+                "types": [block_type] if block_type else None
+            })
+            current_text = ""
+            current_blocks = []
+            continue
+        
+        test_text = current_text + "\n\n" + block_text if current_text else block_text
+        
+        if len(test_text) > chunk_size and current_text:
+            flush_chunk()
+            current_text = block_text
+            current_blocks = [block]
+        else:
+            current_text = test_text
+            current_blocks.append(block)
+    
+    flush_chunk()
+    
+    print(f"已切分為 {len(chunks)} 個片段")
     return chunks

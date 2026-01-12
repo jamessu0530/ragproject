@@ -8,26 +8,12 @@ warnings.filterwarnings("ignore", message=".*No features in text.*")
 warnings.filterwarnings("ignore", message=".*No languages specified.*")
 
 def clean_text(text: str) -> str:
-    """
-    清理文字：移除注音符號、正規化換行和空白
-    """
-    # 1. 移除注音符號（ㄅㄆㄇㄈ等）
-    # 注音符號 Unicode 範圍：U+3105 到 U+312F
     bopomofo_pattern = r'[\u3105-\u312F\u02C7\u02CA\u02CB\u02D9]'
     text = re.sub(bopomofo_pattern, '', text)
-    
-    # 2. 將所有換行符號替換成空格
     text = text.replace('\n', ' ')
-    
-    # 3. 將多個連續空白合併成一個空格
     text = re.sub(r'\s+', ' ', text)
-    
-    # 4. 去除頭尾空白
     text = text.strip()
-    
     return text
-
-
 def extract_text_from_pdf(pdf_path: str) -> list[dict] | None:
     # 不指定語言，讓 unstructured 自動偵測（支援所有語言）
     elements = partition_pdf(pdf_path)
@@ -55,6 +41,10 @@ def extract_text_from_pdf(pdf_path: str) -> list[dict] | None:
             
             # 清理文字：移除注音符號、換行符號和多餘空白
             text = clean_text(text)
+            
+            # 過濾太短的文字（< 10 字元）
+            if len(text) < 10:
+                continue
             
             # 過濾頁碼：如果是純數字且很短（< 5 字元），可能是頁碼，跳過
             if text.isdigit() and len(text) <= 4:
